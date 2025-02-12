@@ -59,7 +59,7 @@ jobs:
 
       - name: 'Set Startup Command'
         run: |
-          az webapp config set --name quantumhr-api-connector --resource-group YOUR_RESOURCE_GROUP --startup-file "gunicorn -w 4 -k uvicorn.workers.UvicornWorker app:app --bind=0.0.0.0"
+          az webapp config set --name quantumhr-api-connector --resource-group ResourceGroup --startup-file "gunicorn -w 4 -k uvicorn.workers.UvicornWorker codigo:codigo --bind=0.0.0.0"
 
       - name: 'Deploy to Azure Web App'
         uses: azure/webapps-deploy@v3
