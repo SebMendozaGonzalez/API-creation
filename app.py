@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 
+
 app = FastAPI()
 
 @app.get("/")
@@ -10,6 +11,6 @@ def read_root():
 async def get_employee():
     return {"id": 1, "name": "John Doe"}
 
-@app.get(api:="/api")
+@app.get("/api")
 def hit_api():
-    return {"Arrived at:": api}
+    return {"Arrived at api"}
