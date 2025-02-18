@@ -3,18 +3,6 @@ from fastapi import FastAPI, Depends, HTTPException, Security
 from fastapi.security import OAuth2AuthorizationCodeBearer
 from jose import JWTError, jwt
 import httpx
-import typing
-import collections.abc
-
-# Manually patch typing.Callable if necessary
-try:
-    class FixedCallable(typing.Generic): # type: ignore
-        pass
-
-    FixedCallable.__abc_registry = collections.abc.Callable.__dict__.get('_abc_registry', None)
-    typing.Callable = FixedCallable
-except Exception:
-    pass  # Fail silently if the patch isn't needed
 
 
 # Load environment variables
