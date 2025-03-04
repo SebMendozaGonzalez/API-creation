@@ -1,13 +1,25 @@
 import os
 import asyncio
 import httpx
+import json
+import logging
 from fastapi import FastAPI, Depends, HTTPException, Security
 from fastapi.security import OAuth2AuthorizationCodeBearer
 from jose import JWTError, jwt
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives import serialization
+
+# Enable logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 TENANT_ID = os.getenv("AZURE_TENANT_ID")
 CLIENT_ID = os.getenv("AZURE_CLIENT_ID")
+
+if not TENANT_ID or not CLIENT_ID:
+    logger.error("AZURE_TENANT_ID or AZURE_CLIENT_ID is not set. Check your environment variables.")
+
 AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}/v2.0"
 OPENID_CONFIG_URL = f"{AUTHORITY}/.well-known/openid-configuration"
 
@@ -45,6 +57,17 @@ async def fetch_openid_config():
 async def startup_event():
     await fetch_openid_config()
 
+def get_rsa_public_key(jwk):
+    """Convert a JWK key to an RSA public key"""
+    exponent = int.from_bytes(bytes.fromhex(jwk["e"]), "big")
+    modulus = int.from_bytes(bytes.fromhex(jwk["n"]), "big")
+
+    public_key = rsa.RSAPublicNumbers(exponent, modulus).public_key()
+    return public_key.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo
+    )
+
 async def get_current_user(token: str = Depends(oauth2_scheme)):
     """Extract and validate token"""
     try:
@@ -54,22 +77,29 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 
         # Decode JWT header
         header = jwt.get_unverified_header(token)
+        logger.info(f"JWT Header: {json.dumps(header, indent=2)}")
+
         key = next((key for key in jwks["keys"] if key["kid"] == header["kid"]), None)
         if key is None:
             raise HTTPException(status_code=401, detail="Invalid token: No matching key found")
 
-        # Verify the token using the key
-        payload = jwt.decode(token, jwt.algorithms.RSAAlgorithm.from_jwk(key), audience=CLIENT_ID, algorithms=["RS256"])
+        # Convert JWK to PEM
+        public_key_pem = get_rsa_public_key(key)
 
+        # Verify the token
+        payload = jwt.decode(token, public_key_pem, audience=CLIENT_ID, algorithms=["RS256"])
+
+        logger.info(f"Decoded Token: {json.dumps(payload, indent=2)}")
         return payload  # Returns the token payload (user info)
 
-    except JWTError:
+    except JWTError as e:
+        logger.error(f"JWT Validation Error: {str(e)}")
         raise HTTPException(status_code=401, detail="Invalid token")
 
 # Protected route
 @app.get("/protected")
 async def protected_route(user: dict = Depends(get_current_user)):
-    return {"message": f"Hello {user['name']}, you are authenticated!"}
+    return {"message": f"Hello {user.get('name', 'User')}, you are authenticated!"}
 
 # Public route (does not require authentication)
 @app.get("/")
