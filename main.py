@@ -6,6 +6,7 @@ import logging
 from fastapi import FastAPI, Depends, HTTPException, Security
 from fastapi.security import OAuth2AuthorizationCodeBearer
 from jose import JWTError, jwt
+import base64
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
 
@@ -59,10 +60,15 @@ async def startup_event():
 
 def get_rsa_public_key(jwk):
     """Convert a JWK key to an RSA public key"""
-    exponent = int.from_bytes(bytes.fromhex(jwk["e"]), "big")
-    modulus = int.from_bytes(bytes.fromhex(jwk["n"]), "big")
+    
+    # Decode Base64URL-encoded exponent and modulus
+    exponent = int.from_bytes(base64.urlsafe_b64decode(jwk["e"] + "=="), "big")
+    modulus = int.from_bytes(base64.urlsafe_b64decode(jwk["n"] + "=="), "big")
 
+    # Create RSA public key
     public_key = rsa.RSAPublicNumbers(exponent, modulus).public_key()
+    
+    # Convert to PEM format
     return public_key.public_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PublicFormat.SubjectPublicKeyInfo
